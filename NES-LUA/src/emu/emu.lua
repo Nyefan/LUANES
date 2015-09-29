@@ -1,10 +1,10 @@
-cpu = require "emu.cpu"
-apu = require "emu.apu"
-ppu = require "emu.ppu"
-cartridge = require "emu.cartridge"
-controller = require "emu.controller"
-mapper = require "emu.mapper"
-ram = require "emu.ram"
+local cpu = require "emu.cpu"
+local apu = require "emu.apu"
+local ppu = require "emu.ppu"
+local cartridge = require "emu.cartridge"
+local controller = require "emu.controller"
+local mapper = require "emu.mapper"
+local ram = require "emu.ram"
 
 function start_emu()
   start_cpu()

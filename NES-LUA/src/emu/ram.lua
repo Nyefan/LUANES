@@ -27,7 +27,12 @@ local function cleanRam()
   for i, v in ipairs(__RAM) do if v == 0 then __RAM[i] = nil end end;
 end
 
+return { setVal = setVal,
+         getVal = getVal,
+         setBlock = setBlock,
+         getBlock = getBlock }
 
+--[[
 -- TEST CODE
 local function pass(passfunc, test)
   if passfunc() then 
@@ -76,4 +81,5 @@ local function runTest()
        "getBlock (nil&val)\t");
 end
 
---runTest()
+runTest()
+--]]

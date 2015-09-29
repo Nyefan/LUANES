@@ -1,3 +1,3 @@
 function start_mapper()
-  print("mapper_started")
+  print("mapper started")
 end
