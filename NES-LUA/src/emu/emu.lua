@@ -1,3 +1,8 @@
+-- Filename: emu.emu.lua
+-- Author: Nyefan
+-- Contact: nyefancoding@gmail.com
+-- This package handles the hardware emulation
+
 local cpu = require "emu.cpu"
 local apu = require "emu.apu"
 local ppu = require "emu.ppu"

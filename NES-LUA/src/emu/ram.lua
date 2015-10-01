@@ -1,3 +1,8 @@
+-- Filename: emu.ram.lua
+-- Author: Nyefan
+-- Contact: nyefancoding@gmail.com
+-- 
+
 function start_ram()
   print("ram started")
 end
