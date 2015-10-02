@@ -4,8 +4,8 @@
 -- This file handles emulation of the CPU (6602) on the RP2A03 (NTSC) and RP2A07 (PAL) MCs
 
 -- Libraries
-bit8 = require "bit8"
-bit32 = require "bit32"
+local bit8 = require "bit8"
+local bit32 = require "bit32"
 
 -- CPU management data
 local Cycles = 0 --number of cycles that have been executed
@@ -95,10 +95,17 @@ local function LO(value)
   return bit32.band(value, 0xFF)
 end
 
-local function addBranchCycles(address, pc)
-  if (HI(address) == HI(pc)) then Cycles = Cycles + 1 end
+local function addBranchCycles(address)
+  if (HI(address) == HI(PC)) then Cycles = Cycles + 1 end
   Cycles = Cycles + 1;
 end
+
+local function genericBranch(address)
+    addBranchCycles(address);
+    PC = address;
+end
+
+
 
 local opTable = {
   ["ADC"] = function(address) -- add memory to accumulator with carry
@@ -120,7 +127,7 @@ local opTable = {
               setZN(A);
             end, --21, 25, 29, 2D, 31, 35, 39, 3D
   ["ASL"] = function(address, mode) -- arithmetic shift left
-              if mode == mode_Accumulator then do
+              if mode == addressingMode.accumulator then do
                 C = bit8.btest(A, 0x80);
                 A = bit8.lshift(A, 1);
                 Z = not bit8.btest(A, 0xFF);
@@ -135,124 +142,169 @@ local opTable = {
               end
             end, --06, 0A, 0E, 16, 1E
   ["BCC"] = function(address) -- branch on carry clear
-              if (not C) then
-                addBranchCycles(address, PC);
-                PC = address;
-              end
+              if (not C) then genericBranch(address) end
             end, --90
   ["BCS"] = function(address) -- branch on carry set
-              if (C) then
-                addBranchCycles(address, PC);
-                PC = address;
-              end
+              if (C) then genericBranch(address) end
             end, --B0
   ["BEQ"] = function(address) -- branch on result zero
-              if (not Z) then
-                addBranchCycles(address, PC);
-                PC = address;
-              end
+              if (not Z) then genericBranch(address) end
             end, --F0
-  ["BIT"] = function() -- test bits in memory with accumulator
+  ["BIT"] = function(address) -- test bits in memory with accumulator
+              local temp = Read(address);
+              V = bit8.btest(A, 0x40);
+              Z = not bit8.btest(A, temp);
+              N = bit8.btest(A, 0x80);
             end, --24, 2C
-  ["BMI"] = function() -- branch on result negative
+  ["BMI"] = function(address) -- branch on result negative
+              if (not N) then genericBranch(address) end
             end, --30
-  ["BNE"] = function() -- branch on result not zero
+  ["BNE"] = function(address) -- branch on result not zero
+              if (Z) then genericBranch(address) end
             end, --D0
-  ["BPL"] = function() -- branch on result positive
+  ["BPL"] = function(address) -- branch on result positive
+              if (not N) then genericBranch(address) end
             end, --10
-  ["BRK"] = function() -- force break 
+  ["BRK"] = function(address, mode) -- force break
+              --TODO: write this
             end, --00
   ["BVC"] = function() -- branch on overflow clear
+              if (not V) then genericBranch(address) end
             end, --50
   ["BVS"] = function() -- branch on overflow set
+              if (V) then genericBranch(address) end  
             end, --70
   ["CLC"] = function() -- clear carry flag
+            
             end, --18
   ["CLD"] = function() -- clear decimal flag
+            
             end, --D8
   ["CLI"] = function() -- clear interrupt disable flag
+            
             end, --58
   ["CLV"] = function() -- clear overflow flag
+            
             end, --B8
   ["CMP"] = function() -- compare memory and accumulator
+            
             end, --C1, C5, C9, CD, D1, D5, D9, DD
   ["CPX"] = function() -- compare memory and register X
+            
             end, --E0, E4, EC
   ["CPY"] = function() -- compare memory and register Y
+            
             end, --C0, C4, CC
-  ["DEC"] = function() 
+  ["DEC"] = function() -- decrement memory by 1
+            
             end, --C6, CE, D6, DE
-  ["DEX"] = function() 
+  ["DEX"] = function() -- decrement register X by 1
+            
             end, --CA
-  ["DEY"] = function() 
+  ["DEY"] = function() -- decrement register Y by 1
+            
             end, --88
-  ["EOR"] = function() 
+  ["EOR"] = function() -- xor memory with accumulator (store in accumulator)
+            
             end, --41, 45, 49, 4D, 51, 55, 59, 5D
-  ["INC"] = function() 
+  ["INC"] = function() -- increment memory by 1
+            
             end, --E6, EE, F6, FE
-  ["INX"] = function() 
+  ["INX"] = function() -- increment register X by 1
+            
             end, --E8
-  ["INY"] = function() 
+  ["INY"] = function() -- increment register Y by 1
+            
             end, --C8
-  ["JMP"] = function() 
+  ["JMP"] = function() -- jump
+            
             end, --4C, 6C
-  ["JSR"] = function() 
+  ["JSR"] = function() -- jump, saving return address
+            
             end, --20
-  ["LDA"] = function() 
+  ["LDA"] = function() -- load accumulator with memory
+            
             end, --A1, A5, A9, AD, B1, B5, B9, BD
-  ["LDX"] = function() 
+  ["LDX"] = function() -- load register X with memory
+            
             end, --A2, A6, AE, B6, BE
-  ["LDY"] = function() 
+  ["LDY"] = function() -- load register Y with memory
+            
             end, --A0, A4, AC, B4, BB
-  ["LSR"] = function() 
+  ["LSR"] = function() -- logical shift right
+            
             end, --46, 4A, 4E, 56, 5E
-  ["NOP"] = function() 
+  ["NOP"] = function() -- no op (two cycles)
+            
             end, --04, 0C, 14, 1A, 1C, 34, 3A, 3C, 44, 54, 5A, 5C, 64, 74, 7A, 7C, 80, 82, 89, C2, D4, DA, DC, E2, EA, F4, FA, FC
-  ["ORA"] = function() 
+  ["ORA"] = function() -- or accumulator with memory
+            
             end, --01, 05, 09, 0D, 11, 15, 19, 1D
-  ["PHA"] = function() 
+  ["PHA"] = function() -- push accumulator to stack
+            
             end, --48
-  ["PHP"] = function() 
+  ["PHP"] = function() -- push PC to stack
+            
             end, --08
-  ["PLA"] = function() 
+  ["PLA"] = function() -- pull accumulator from stack
+            
             end, --68
-  ["PLP"] = function() 
+  ["PLP"] = function() -- pull PC from stack
+            
             end, --28
-  ["ROL"] = function() 
+  ["ROL"] = function() -- rotate left (memory or accumulator)
+            
             end, --26, 2A, 2E, 36, 3E
-  ["ROR"] = function() 
+  ["ROR"] = function() -- rotate right (memory of accumulator)
+            
             end, --66, 6A, 6E, 76, 7E
-  ["RTI"] = function() 
+  ["RTI"] = function() -- return from interrupt
+            
             end, --40
-  ["RTS"] = function() 
+  ["RTS"] = function() -- return from subroutine
+            
             end, --60
-  ["SBC"] = function() 
+  ["SBC"] = function() -- subtract memory from accumulator with borrow
+            
             end, --E1, E5, E9, EB, ED, F1, F5, F9, FD
-  ["SEC"] = function() 
+  ["SEC"] = function() -- set carry flag
+            
             end, --38
-  ["SED"] = function() 
+  ["SED"] = function() -- set decimal flag
+            
             end, --F8
-  ["SEI"] = function() 
+  ["SEI"] = function() -- set interrupt disable flag
+            
             end, --78
-  ["STA"] = function() 
+  ["STA"] = function() -- store accumulator in memory
+            
             end, --81, 85, 8D, 91, 95, 99, 9D
-  ["STX"] = function() 
+  ["STX"] = function() -- store register X in memory
+            
             end, --8E, 96, 9E
-  ["STY"] = function() 
+  ["STY"] = function() -- store register Y in memory
+            
             end, --8C, 94, 9C
-  ["TAS"] = function() 
+  ["TAS"] = function() -- transfer accumulator to stack pointer
+            
             end, --9B
-  ["TAX"] = function() 
+  ["TAX"] = function() -- transfer accumulator to register X
+            
             end, --AA
-  ["TAY"] = function() 
+  ["TAY"] = function() -- transfer accumulator to register Y
+            
             end, --A8
-  ["TSX"] = function() 
+  ["TSX"] = function() -- transfer stack pointer to register X
+            
             end, --BA
-  ["TXA"] = function() 
+  ["TXA"] = function() -- transfer register X to accumulator
+            
             end, --8A
-  ["TXS"] = function() 
+  ["TXS"] = function() -- transfer register X to stack pointer
+            
             end, --9A
-  ["TYA"] = function() 
+  ["TYA"] = function() -- transfer register Y to accumulator
+            
             end, --98
             
             
