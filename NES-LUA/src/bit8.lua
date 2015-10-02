@@ -42,7 +42,8 @@ function bit8.replace(n, v, f, w)
 end
 
 function bit8.lrotate(value, displacement)
-
+  temp = bit32.band(value, 0xFF)
+  return bit32.lrotate(bit32.bxor(temp, bit32.lshift(temp, 8), bit32.lshift(temp, 16), bit32.lshift(temp, 24)), displacement)
 end
 
 function bit8.lshift(value, displacement)
@@ -50,7 +51,8 @@ function bit8.lshift(value, displacement)
 end
 
 function bit8.rrotate(value, displacement)
-
+  temp = bit32.band(value, 0xFF)
+  return bit32.rrotate(bit32.bor(temp, bit32.lshift(temp, 8), bit32.lshift(temp, 16), bit32.lshift(temp, 24)), displacement)
 end
 
 function bit8.lrshift(value, displacement)
