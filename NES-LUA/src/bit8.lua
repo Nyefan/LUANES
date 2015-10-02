@@ -1,6 +1,11 @@
+-- Filename: bit8.lua
+-- Author: Nyefan
+-- Contact: nyefancoding@gmail.com
+-- An 8 bit wrapper of the standard bit32 library
+
 bit32 = require "bit32"
 
-bit8 = {}
+local bit8 = {}
 
 function bit8.arshift(value, displacement)
   bit32.arshift(bit32.band(value, 0xFF), displacement)
@@ -52,3 +57,4 @@ function bit8.lrshift(value, displacement)
   return bit32.rshift(bit32.band(value, 0xFF), displacement)
 end
 
+return bit8
