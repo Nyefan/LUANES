@@ -3,6 +3,9 @@
 -- Contact: nyefancoding@gmail.com
 -- This file handles emulation of the CPU (6602) on the RP2A03 (NTSC) and RP2A07 (PAL) MCs
 
+-- Libraries
+bit8 = require "bit8"
+
 -- CPU management data
 local Cycles = 0 --number of cycles that have been executed
 
@@ -22,6 +25,10 @@ local PC --program counter
 local SP --stack pointer
 
 local function Read(address)
+  return 0;
+end
+
+local function Write(address, value)
   return 0;
 end
 
@@ -55,7 +62,7 @@ local optable = {
                 C = bit8.btest(A, 0x80);
                 a = bit8.lshift(a, 1);
                 Write(address, a);
-                Z = not bi8.btest(a, 0xFF);
+                Z = not bit8.btest(a, 0xFF);
                 N = bit8.btest(a, 0x80);
               end
             end, --06, 0A, 0E, 16, 1E
@@ -136,5 +143,6 @@ local optable = {
 
 function start_cpu(inesMapper)
   Read = inesMapper.Read
+  Write = inesMapper.Write
   print("cpu started")
 end
