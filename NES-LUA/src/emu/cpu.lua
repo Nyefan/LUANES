@@ -25,6 +25,25 @@ local addressingMode = { accumulator = 0,
                          indirectX   = 10,  --indexed indirect
                          indirectY   = 11,  --indirect indexed
                          indirectAbs = 12 } --absolute indexed
+                  
+                 --0x0    0x1    0x2    0x3    0x4    0x5    0x6    0x7    0x8    0x9    0xA    0xB    0xC    0xD    0xE    0xF
+local opCodes = { "BRK", "ORA", "KIL", "SLO", "NOP", "ORA", "ASL", "SLO", "PHP", "ORA", "ASL", "ANC", "NOP", "ORA", "ASL", "SLO",  --0x00
+                  "BPL", "ORA", "KIL", "SLO", "NOP", "ORA", "ASL", "SLO", "CLC", "ORA", "NOP", "SLO", "NOP", "ORA", "ASL", "SLO",  --0x10
+                  "JSR", "AND", "KIL", "RLA", "BIT", "AND", "ROL", "RLA", "PLP", "AND", "ROL", "ANC", "BIT", "AND", "ROL", "RLA",  --0x20
+                  "BMI", "AND", "KIL", "RLA", "NOP", "AND", "ROL", "RLA", "SEC", "AND", "NOP", "RLA", "NOP", "AND", "ROL", "RLA",  --0x30
+                  "RTI", "EOR", "KIL", "SRE", "NOP", "EOR", "LSR", "SRE", "PHA", "EOR", "LSR", "ALR", "JMP", "EOR", "LSR", "SRE",  --0x40
+                  "BVC", "EOR", "KIL", "SRE", "NOP", "EOR", "LSR", "SRE", "CLI", "EOR", "NOP", "SRE", "NOP", "EOR", "LSR", "SRE",  --0x50
+                  "RTS", "ADC", "KIL", "RRA", "NOP", "ADC", "ROR", "RRA", "PLA", "ADC", "ROR", "ARR", "JMP", "ADC", "ROR", "RRA",  --0x60
+                  "BVS", "ADC", "KIL", "RRA", "NOP", "ADC", "ROR", "RRA", "SEI", "ADC", "NOP", "RRA", "NOP", "ADC", "ROR", "RRA",  --0x70
+                  "NOP", "STA", "NOP", "SAX", "STY", "STA", "STX", "SAX", "DEY", "NOP", "TXA", "XAA", "STY", "STA", "STX", "SAX",  --0x80
+                  "BCC", "STA", "KIL", "AHX", "STY", "STA", "STX", "SAX", "TYA", "STA", "TXS", "TAS", "SHY", "STA", "SHX", "AHX",  --0x90
+                  "LDY", "LDA", "LDX", "LAX", "LDY", "LDA", "LDX", "LAX", "TAY", "LDA", "TAX", "LAX", "LDY", "LDA", "LDX", "LAX",  --0xA0
+                  "BCS", "LDA", "KIL", "LAX", "LDY", "LDA", "LDX", "LAX", "CLV", "LDA", "TSX", "LAS", "LDY", "LDA", "LDX", "LAX",  --0xB0
+                  "CPY", "CMP", "NOP", "DCP", "CPY", "CMP", "DEC", "DCP", "INY", "CMP", "DEX", "AXS", "CPY", "CMP", "DEC", "DCP",  --0xC0
+                  "BNE", "CMP", "KIL", "DCP", "NOP", "CMP", "DEC", "DCP", "CLD", "CMP", "NOP", "DCP", "NOP", "CMP", "DEC", "DCP",  --0xD0
+                  "CPX", "SBC", "NOP", "ISC", "CPX", "SBC", "INC", "ISC", "INX", "SBC", "NOP", "SBC", "CPX", "SBC", "INC", "ISC",  --0xE0
+                  "BEQ", "SBC", "KIL", "ISC", "NOP", "SBC", "INC", "ISC", "SED", "SBC", "NOP", "ISC", "NOP", "SBC", "INC", "ISC" } --0xF0
+                  
                          
                 --0x0  0x1  0x2  0x3  0x4  0x5  0x6  0x7  0x8  0x9  0xA  0xB  0xC  0xD  0xE  0xF
 local opModes = {  8,  10,   8,  10,   2,   2,   2,   2,   8,   1,   0,   1,   5,   5,   5,   5,  --0x00 
@@ -101,8 +120,20 @@ local function addBranchCycles(address)
 end
 
 local function genericBranch(address)
-    addBranchCycles(address);
-    PC = address;
+  addBranchCycles(address);
+  PC = address;
+end
+
+local function bool2bin(bool)
+  if(bool) then return 0x01 else return 0x00 end
+end
+
+local function setZ(value)
+  Z = not bit8.btest(value, 0xFF);
+end
+
+local function setN(value)
+  N = bit8.btest(A, 0x80);
 end
 
 
@@ -119,26 +150,23 @@ local opTable = {
               if (C) then A = bit8.band(A, 0xFF) end
               
               V = bit8.band(bit8.bxor(a, b), 0x80) == 0x00 and bit8.band(bit8.bxor(a, A), 0x80) ~= 0x00; --TODO: revisit this with btest()
-              Z = bit8.band(A, 0xFF) == 0x00;
-              N = bit8.band(A, 0x80) ~= 0x00; 
+              setZ(A); setN(A); 
             end, --61, 65, 69, 6D, 71, 75, 79, 7D
   ["AND"] = function(address) -- and memory with accumulator
               A = bit8.band(A, Read(address));
-              setZN(A);
+              setZ(A); setN(A);
             end, --21, 25, 29, 2D, 31, 35, 39, 3D
   ["ASL"] = function(address, mode) -- arithmetic shift left
               if mode == addressingMode.accumulator then do
                 C = bit8.btest(A, 0x80);
                 A = bit8.lshift(A, 1);
-                Z = not bit8.btest(A, 0xFF);
-                N = bit8.btest(A, 0x80);
+                setZ(A); setN(A);
               end else
-                local a = Read(address);
+                local temp = Read(address);
                 C = bit8.btest(A, 0x80);
-                a = bit8.lshift(a, 1);
-                Write(address, a);
-                Z = not bit8.btest(a, 0xFF);
-                N = bit8.btest(a, 0x80);
+                temp = bit8.lshift(temp, 1);
+                Write(address, temp);
+                setZ(temp); setN(temp);
               end
             end, --06, 0A, 0E, 16, 1E
   ["BCC"] = function(address) -- branch on carry clear
@@ -153,8 +181,7 @@ local opTable = {
   ["BIT"] = function(address) -- test bits in memory with accumulator
               local temp = Read(address);
               V = bit8.btest(A, 0x40);
-              Z = not bit8.btest(A, temp);
-              N = bit8.btest(A, 0x80);
+              setZ(bit8.btest(A, temp)); setN(temp);
             end, --24, 2C
   ["BMI"] = function(address) -- branch on result negative
               if (not N) then genericBranch(address) end
@@ -168,143 +195,207 @@ local opTable = {
   ["BRK"] = function(address, mode) -- force break
               --TODO: write this
             end, --00
-  ["BVC"] = function() -- branch on overflow clear
+  ["BVC"] = function(address) -- branch on overflow clear
               if (not V) then genericBranch(address) end
             end, --50
-  ["BVS"] = function() -- branch on overflow set
+  ["BVS"] = function(address) -- branch on overflow set
               if (V) then genericBranch(address) end  
             end, --70
   ["CLC"] = function() -- clear carry flag
-            
+              C = false;
             end, --18
   ["CLD"] = function() -- clear decimal flag
-            
+              D = false;
             end, --D8
   ["CLI"] = function() -- clear interrupt disable flag
-            
+              I = false;
             end, --58
   ["CLV"] = function() -- clear overflow flag
-            
+              V = false;
             end, --B8
-  ["CMP"] = function() -- compare memory and accumulator
-            
+  ["CMP"] = function(address) -- compare memory and accumulator
+              C = A >= Read(address);
             end, --C1, C5, C9, CD, D1, D5, D9, DD
-  ["CPX"] = function() -- compare memory and register X
-            
+  ["CPX"] = function(address) -- compare memory and register X
+              C = X >= Read(address);
             end, --E0, E4, EC
-  ["CPY"] = function() -- compare memory and register Y
-            
+  ["CPY"] = function(address) -- compare memory and register Y
+              C = Y >= Read(address);
             end, --C0, C4, CC
-  ["DEC"] = function() -- decrement memory by 1
-            
+  ["DEC"] = function(address) -- decrement memory by 1
+              local temp = bit8.band(Read(address) - 1, 0xFF);
+              Write(address, temp);
+              setZ(temp); setN(temp);
             end, --C6, CE, D6, DE
   ["DEX"] = function() -- decrement register X by 1
-            
+              X = bit8.band(X - 1, 0xFF);
+              setZ(X); setN(X);
             end, --CA
   ["DEY"] = function() -- decrement register Y by 1
-            
+              Y = bit8.band(Y - 1, 0xFF);
+              setZ(Y); setN(Y);
             end, --88
-  ["EOR"] = function() -- xor memory with accumulator (store in accumulator)
-            
+  ["EOR"] = function(address) -- xor memory with accumulator (store in accumulator)
+              A = bit8.bxor(A, Read(address));
+              setZ(A); setN(A);
             end, --41, 45, 49, 4D, 51, 55, 59, 5D
-  ["INC"] = function() -- increment memory by 1
-            
+  ["INC"] = function(address) -- increment memory by 1
+              local temp = bit8.band(Read(address) + 1, 0xFF);
+              Write(address, temp);
+              setZ(temp); setN(temp);
             end, --E6, EE, F6, FE
   ["INX"] = function() -- increment register X by 1
-            
+              X = bit8.band(X + 1, 0xFF);
+              setZ(X); setN(X);
             end, --E8
   ["INY"] = function() -- increment register Y by 1
-            
+              Y = bit8.band(Y - 1, 0xFF);
+              setZ(Y); setN(Y);
             end, --C8
-  ["JMP"] = function() -- jump
-            
+  ["JMP"] = function(address) -- jump
+              PC = address
             end, --4C, 6C
-  ["JSR"] = function() -- jump, saving return address
-            
+  ["JSR"] = function(address) -- jump, saving return address
+              --TODO: write this
             end, --20
-  ["LDA"] = function() -- load accumulator with memory
-            
+  ["LDA"] = function(address) -- load accumulator with memory
+              A = Read(address);
+              setZ(A); setN(A);
             end, --A1, A5, A9, AD, B1, B5, B9, BD
-  ["LDX"] = function() -- load register X with memory
-            
+  ["LDX"] = function(address) -- load register X with memory
+              X = Read(address);
+              setZ(X); setN(X);
             end, --A2, A6, AE, B6, BE
-  ["LDY"] = function() -- load register Y with memory
-            
+  ["LDY"] = function(address) -- load register Y with memory
+              Y = Read(address);
+              setZ(Y); setN(Y);
             end, --A0, A4, AC, B4, BB
-  ["LSR"] = function() -- logical shift right
-            
+  ["LSR"] = function(address, mode) -- logical shift right
+              if mode == addressingMode.accumulator then do
+                C = bit8.btest(A, 0x01);
+                A = bit8.rshift(A, 1);
+                setZ(A); setN(A);
+              end else
+                local temp = Read(address);
+                C = bit8.btest(temp, 0x01);
+                temp = bit8.rshift(temp, 1);
+                Write(address, temp);
+                setZ(temp); setN(temp);
+              end
             end, --46, 4A, 4E, 56, 5E
   ["NOP"] = function() -- no op (two cycles)
-            
+              -- do nothing
             end, --04, 0C, 14, 1A, 1C, 34, 3A, 3C, 44, 54, 5A, 5C, 64, 74, 7A, 7C, 80, 82, 89, C2, D4, DA, DC, E2, EA, F4, FA, FC
-  ["ORA"] = function() -- or accumulator with memory
-            
+  ["ORA"] = function(address) -- or accumulator with memory
+              A = bit8.bor(A, Read(address));
+              setZ(A); setN(A);
             end, --01, 05, 09, 0D, 11, 15, 19, 1D
   ["PHA"] = function() -- push accumulator to stack
-            
+              --TODO: write this
             end, --48
   ["PHP"] = function() -- push PC to stack
-            
+              --TODO: write this
             end, --08
   ["PLA"] = function() -- pull accumulator from stack
-            
+              --TODO: write this
             end, --68
   ["PLP"] = function() -- pull PC from stack
-            
+              --TODO: write this
             end, --28
-  ["ROL"] = function() -- rotate left (memory or accumulator)
-            
+  ["ROL"] = function(address, mode) -- rotate left (memory or accumulator)
+              if mode == addressingMode.accumulator then do
+                local tempC = C;
+                C = bit8.btest(A, 0x80);
+                A = bit8.bor(bit8.lshift(A, 1), bool2bin(tempC)); --TODO: figure out a way to remove bool2bin()
+                setZ(A); setN(A);
+              end else
+                local temp = Read(address);
+                local tempC = C;
+                C = bit8.btest(temp, 0x80);
+                temp = bit8.bor(bit8.lshift(temp, 1), bool2bin(tempC)); --TODO: figure out a way to remove bool2bin()
+                Write(address, temp);
+                setZ(temp); setN(temp);
+              end
             end, --26, 2A, 2E, 36, 3E
-  ["ROR"] = function() -- rotate right (memory of accumulator)
-            
+  ["ROR"] = function(address, mode) -- rotate right (memory of accumulator)
+              if mode == addressingMode.accumulator then do
+                local tempC = C;
+                C = bit8.btest(A, 0x01);
+                A = bit8.bor(bit8.rshift(A, 1), bit8.lshift(bool2bin(tempC)));
+                setZ(A); setN(A);
+              end else
+                local temp = Read(address);
+                local tempC = C;
+                C = bit8.btest(temp, 0x01);
+                temp = bit8.bor(bit8.rshift(temp, 1), bit8.lsfhift(bool2bin(tempC)));
+                Write(address, temp);
+                setZ(temp); setN(temp);
+              end
             end, --66, 6A, 6E, 76, 7E
   ["RTI"] = function() -- return from interrupt
-            
+              --TODO: write this
             end, --40
   ["RTS"] = function() -- return from subroutine
-            
+              --TODO: write this
             end, --60
-  ["SBC"] = function() -- subtract memory from accumulator with borrow
-            
+            --TODO: ensure this handles overflow properly
+  ["SBC"] = function(address) -- subtract memory from accumulator with borrow
+              local tempA = A;
+              local tempB = Read(address);
+              
+              A = tempA - tempB;
+              if (not C) then A = A - 1 end
+              
+              C = (A >= 0x00);
+              
+              if (C) then A = bit8.band(A, 0xFF) end
+              
+              V = bit8.btest(bit8.bxor(tempA, tempB), 0x80) and bit8.test(bit8.bxor(tempA, A), 0x80);
+              
+              setZ(A); setN(A); 
+              
             end, --E1, E5, E9, EB, ED, F1, F5, F9, FD
   ["SEC"] = function() -- set carry flag
-            
+              C = true;
             end, --38
   ["SED"] = function() -- set decimal flag
-            
+              D = true;
             end, --F8
   ["SEI"] = function() -- set interrupt disable flag
-            
+              I = true
             end, --78
-  ["STA"] = function() -- store accumulator in memory
-            
+  ["STA"] = function(address) -- store accumulator in memory
+              Write(address, A)
             end, --81, 85, 8D, 91, 95, 99, 9D
-  ["STX"] = function() -- store register X in memory
-            
+  ["STX"] = function(address) -- store register X in memory
+              Write(address, X)
             end, --8E, 96, 9E
-  ["STY"] = function() -- store register Y in memory
-            
+  ["STY"] = function(address) -- store register Y in memory
+              Write(address, Y)
             end, --8C, 94, 9C
-  ["TAS"] = function() -- transfer accumulator to stack pointer
-            
-            end, --9B
+
   ["TAX"] = function() -- transfer accumulator to register X
-            
+              X = A;
+              setZ(X); setN(X);
             end, --AA
   ["TAY"] = function() -- transfer accumulator to register Y
-            
+              Y = A;
+              setZ(Y); setN(Y);
             end, --A8
   ["TSX"] = function() -- transfer stack pointer to register X
-            
+              X = SP;
+              setZ(X); setN(X);
             end, --BA
   ["TXA"] = function() -- transfer register X to accumulator
-            
+              A = X;
+              setZ(A); setN(A);
             end, --8A
   ["TXS"] = function() -- transfer register X to stack pointer
-            
+              SP = X;
             end, --9A
   ["TYA"] = function() -- transfer register Y to accumulator
-            
+              A = Y;
+              setZ(A); setN(A);
             end, --98
             
             
@@ -325,11 +416,23 @@ local opTable = {
   ["SHY"] = function() end, --9C, unofficial
   ["SLO"] = function() end, --03, 07, 0F, 13, 17, 1B, 1F, unofficial
   ["SRE"] = function() end, --43, 47, 4F, 53, 57, 5B, 5F, unofficial
+  ["TAS"] = function() end, --9B, unofficial
   ["XAA"] = function() end, --8B, unofficial
 }
+
+local function NMI()
+  --TODO: write this
+end
+
+local function IRQ()
+  --TODO: write this
+end
 
 function start_cpu(inesMapper)
   Read = inesMapper.Read
   Write = inesMapper.Write
   print("cpu started")
 end
+
+function reset_cpu()
+  PC
