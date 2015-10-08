@@ -16,7 +16,7 @@ function bit8.band(...)
 end
 
 function bit8.bnot(value)
-  return bit8.bnot(bit8.band(value, 0xFF))
+  return bit32.band(bit32.bnot(value), 0xFF)
 end
 
 function bit8.bor(...)
@@ -24,7 +24,7 @@ function bit8.bor(...)
 end
 
 function bit8.btest(...)
-  return bit32.btest(bit32.band(...), 0xFF)
+  return bit32.btest(..., 0xFF)
 end
 
 function bit8.bxor(...)
@@ -47,7 +47,7 @@ function bit8.lrotate(value, displacement)
 end
 
 function bit8.lshift(value, displacement)
-  return bit32.lshift(bit32.band(value, 0xFF), displacement)
+  return bit32.band(bit32.lshift(bit32.band(value, 0xFF), displacement), 0xFF)
 end
 
 function bit8.rrotate(value, displacement)
@@ -55,8 +55,8 @@ function bit8.rrotate(value, displacement)
   return bit32.rrotate(bit32.bor(temp, bit32.lshift(temp, 8), bit32.lshift(temp, 16), bit32.lshift(temp, 24)), displacement)
 end
 
-function bit8.lrshift(value, displacement)
-  return bit32.rshift(bit32.band(value, 0xFF), displacement)
+function bit8.rshift(value, displacement)
+  return bit32.band(bit32.rshift(bit32.band(value, 0xFF), displacement), 0xFF)
 end
 
 return bit8
