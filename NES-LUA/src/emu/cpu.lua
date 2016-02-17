@@ -9,6 +9,9 @@ local bit32 = require "bit32"
 
 -- CPU management data
 local Cycles = 0 --number of cycles that have been executed
+local interrupt = 0
+local stall = 0
+local frequency = 1789773
 local interruptModes = { none = 0,
                          nmi  = 1,
                          irq  = 2 }
@@ -81,6 +84,43 @@ local opCycles = { 7,   6,   2,   8,   3,   3,   5,   5,   3,   2,   2,   2,   4
                    2,   6,   2,   8,   3,   3,   5,   5,   2,   2,   2,   2,   4,   4,   6,   6,  --0xE0
                    2,   5,   2,   8,   4,   4,   6,   6,   2,   4,   2,   7,   4,   4,   7,   7 } --0xF0
 
+                --0x0  0x1  0x2  0x3  0x4  0x5  0x6  0x7  0x8  0x9  0xA  0xB  0xC  0xD  0xE  0xF
+local opSizes  = { 1,   2,   0,   0,   2,   2,   2,   0,   1,   2,   1,   0,   3,   3,   3,   0,  --0x00
+                   2,   2,   0,   0,   2,   2,   2,   0,   1,   3,   1,   0,   3,   3,   3,   0,  --0x10
+                   3,   2,   0,   0,   2,   2,   2,   0,   1,   2,   1,   0,   3,   3,   3,   0,  --0x20
+                   2,   2,   0,   0,   2,   2,   2,   0,   1,   3,   1,   0,   3,   3,   3,   0,  --0x30
+                   1,   2,   0,   0,   2,   2,   2,   0,   1,   2,   1,   0,   3,   3,   3,   0,  --0x40
+                   2,   2,   0,   0,   2,   2,   2,   0,   1,   3,   1,   0,   3,   3,   3,   0,  --0x50
+                   1,   2,   0,   0,   2,   2,   2,   0,   1,   2,   1,   0,   3,   3,   3,   0,  --0x60
+                   2,   2,   0,   0,   2,   2,   2,   0,   1,   3,   1,   0,   3,   3,   3,   0,  --0x70
+                   2,   2,   0,   0,   2,   2,   2,   0,   1,   0,   1,   0,   3,   3,   3,   0,  --0x80
+                   2,   2,   0,   0,   2,   2,   2,   0,   1,   3,   1,   0,   0,   3,   0,   0,  --0x90
+                   2,   2,   2,   0,   2,   2,   2,   0,   1,   2,   1,   0,   3,   3,   3,   0,  --0xA0
+                   2,   2,   0,   0,   2,   2,   2,   0,   1,   3,   1,   0,   3,   3,   3,   0,  --0xB0
+                   2,   2,   0,   0,   2,   2,   2,   0,   1,   2,   1,   0,   3,   3,   3,   0,  --0xC0
+                   2,   2,   0,   0,   2,   2,   2,   0,   1,   3,   1,   0,   3,   3,   3,   0,  --0xD0
+                   2,   2,   0,   0,   2,   2,   2,   0,   1,   2,   1,   0,   3,   3,   3,   0,  --0xE0
+                   2,   2,   0,   0,   2,   2,   2,   0,   1,   3,   1,   0,   3,   3,   3,   0 } --0xF0
+
+                --0x0  0x1  0x2  0x3  0x4  0x5  0x6  0x7  0x8  0x9  0xA  0xB  0xC  0xD  0xE  0xF
+local opPCycles= { 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  --0x00
+                   1,   1,   0,   0,   0,   0,   0,   0,   0,   1,   0,   0,   1,   1,   0,   0,  --0x10
+                   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  --0x20
+                   1,   1,   0,   0,   0,   0,   0,   0,   0,   1,   0,   0,   1,   1,   0,   0,  --0x30
+                   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  --0x40
+                   1,   1,   0,   0,   0,   0,   0,   0,   0,   1,   0,   0,   1,   1,   0,   0,  --0x50
+                   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  --0x60
+                   1,   1,   0,   0,   0,   0,   0,   0,   0,   1,   0,   0,   1,   1,   0,   0,  --0x70
+                   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  --0x80
+                   1,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  --0x90
+                   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  --0xA0
+                   1,   1,   0,   1,   0,   0,   0,   0,   0,   1,   0,   1,   1,   1,   1,   1,  --0xB0
+                   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  --0xC0
+                   1,   1,   0,   0,   0,   0,   0,   0,   0,   1,   0,   0,   1,   1,   0,   0,  --0xD0
+                   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  --0xE0
+                   1,   1,   0,   0,   0,   0,   0,   0,   0,   1,   0,   0,   1,   1,   0,   0 } --0xF0
+
+
 -- CPU components
 local A  --accumulator
 local X  --register, X
@@ -98,20 +138,16 @@ local Z  --flag, zero
 local PC --program counter
 local SP --stack pointer
 
-local function Read(address)
-  return 0;
-end
-
-local function Write(address, value)
-  return 0;
-end
-
 local function HI(value)
-  return bit32.extract(value, 8, 8)
+  return bit32.extract(value, 8, 8);
 end
 
 local function LO(value)
-  return bit32.band(value, 0xFF)
+  return bit32.band(value, 0xFF);
+end
+
+local function HILO(hi, lo)
+  bit32.band(bit32.bor(bit32.lshift(hi, 8), lo), 0xFFFF);
 end
 
 local function addBranchCycles(address)
@@ -128,6 +164,54 @@ local function bool2bin(bool)
   if(bool) then return 0x01 else return 0x00 end
 end
 
+local function Read(address)
+  return 0;
+end
+
+local function Read16(address)
+  local lo = Read(address)
+  local hi = Read(address+1)
+  return HILO(hi, lo);
+end
+
+local function Read16Bug(address)
+  local lo = Read(address)
+  local hi = Read(HILO(HI(address), LO(address+1)))
+  return HILO(hi, lo);
+end
+
+local function Write(address, value)
+  return 0;
+end
+
+local function Push(value)
+  Write(bit8.bor(0x0100, SP), value)
+end
+
+local function Push16(value)
+  Push(HI(value))
+  Push(LO(value))
+end
+
+local function Pull()
+  SP = SP + 1
+  return Read(bit8.bor(0x100, SP))
+end
+
+local function Pull16()
+  local lo = Pull()
+  local hi = Pull()
+  return HILO(hi, lo);
+end
+
+local function triggerNMI()
+  interrupt = interruptModes.nmi
+end
+
+local function triggerIRQ()
+  interrupt = interruptModes.irq
+end
+
 local function setZ(value)
   Z = not bit8.btest(value, 0xFF);
 end
@@ -136,7 +220,38 @@ local function setN(value)
   N = bit8.btest(A, 0x80);
 end
 
+local function setFlagsByHex(value)
+  C = bit8.btest(value, 0x01);
+  Z = bit8.btest(value, 0x02);
+  I = bit8.btest(value, 0x04);
+  D = bit8.btest(value, 0x08);
+  B = bit8.btest(value, 0x10);
+  U = bit8.btest(value, 0x20);
+  V = bit8.btest(value, 0x40);
+  N = bit8.btest(value, 0x80);
+end
 
+local function setFlags(C, Z, I, D, B, U, V, N)
+  C = C;
+  Z = Z;
+  I = I;
+  D = D;
+  B = B;
+  U = U;
+  V = V;
+  N = N;
+end
+
+local function getFlags()
+  return bit8.bor(bit8.lshift(C, 0),
+                  bit8.lshift(Z, 1),
+                  bit8.lshift(I, 2),
+                  bit8.lshift(D, 3),
+                  bit8.lshift(B, 4),
+                  bit8.lshift(U, 5),
+                  bit8.lshift(V, 6),
+                  bit8.lshift(N, 7))
+end
 
 local opTable = {
   ["ADC"] = function(address) -- add memory to accumulator with carry
@@ -193,7 +308,10 @@ local opTable = {
               if (not N) then genericBranch(address) end
             end, --10
   ["BRK"] = function(address, mode) -- force break
-              --TODO: write this
+              Push16(PC);
+              Push(bit8.bor(getFlags(), 0x10)); --PHP()
+              I = true; --SEI()
+              PC = Read16(0xFFFE);
             end, --00
   ["BVC"] = function(address) -- branch on overflow clear
               if (not V) then genericBranch(address) end
@@ -256,7 +374,8 @@ local opTable = {
               PC = address
             end, --4C, 6C
   ["JSR"] = function(address) -- jump, saving return address
-              --TODO: write this
+              Push16(PC-1);
+              PC = address;
             end, --20
   ["LDA"] = function(address) -- load accumulator with memory
               A = Read(address);
@@ -291,16 +410,17 @@ local opTable = {
               setZ(A); setN(A);
             end, --01, 05, 09, 0D, 11, 15, 19, 1D
   ["PHA"] = function() -- push accumulator to stack
-              --TODO: write this
+              Push(A);
             end, --48
   ["PHP"] = function() -- push PC to stack
-              --TODO: write this
+              Push(bit8.bor(getFlags(), 0x10));
             end, --08
   ["PLA"] = function() -- pull accumulator from stack
-              --TODO: write this
+              A = Pull();
+              setZ(A); setN(A);
             end, --68
   ["PLP"] = function() -- pull PC from stack
-              --TODO: write this
+              setFlagsByHex(bit8.bor(bit8.band(Pull(), 0xEF), 0x20));
             end, --28
   ["ROL"] = function(address, mode) -- rotate left (memory or accumulator)
               if mode == addressingMode.accumulator then do
@@ -333,10 +453,10 @@ local opTable = {
               end
             end, --66, 6A, 6E, 76, 7E
   ["RTI"] = function() -- return from interrupt
-              --TODO: write this
+              setFlagsByHex(bit8.bor(bit8.band(Pull(), 0xEF), 0x20));
             end, --40
   ["RTS"] = function() -- return from subroutine
-              --TODO: write this
+              PC = Pull16+1
             end, --60
             --TODO: ensure this handles overflow properly
   ["SBC"] = function(address) -- subtract memory from accumulator with borrow
@@ -397,7 +517,7 @@ local opTable = {
               A = Y;
               setZ(A); setN(A);
             end, --98
-            
+
             
   ["AHX"] = function() end, --93, 9F, unofficial
   ["ALR"] = function() end, --4B, unofficial
@@ -421,18 +541,88 @@ local opTable = {
 }
 
 local function NMI()
-  --TODO: write this
+  Push16(PC)
+  opTable.PHP(nil)
+  PC = Read16(0xFFFA)
+  I = 1
+  Cycles = Cycles + 7
 end
 
 local function IRQ()
-  --TODO: write this
+  Push16(PC)
+  opTable.PHP(nil)
+  PC = Read16(0xFFFE)
+  I = 1
+  Cycles = Cycles + 7
 end
 
-function start_cpu(inesMapper)
+local interruptFuncs = {
+  function() end,
+  NMI(),
+  IRQ()
+}
+
+local addressingFuncs = {
+  function() return 0; end,                       --accumulator
+  function() return PC+1; end,                    --immediate
+  function() return Read(PC+1); end,              --zeroPage
+  function() return Read(PC+1)+X; end,            --zeroPageX
+  function() return Read(PC+1)+Y; end,            --zeroPageY
+  function() return Read16(PC+1); end,            --absolute
+  function()                                      --absoluteX
+    local adr = Read16(PC+1)+X
+    return adr, HI(adr-X)~=HI(adr);
+  end,
+  function()                                      --absoluteY
+    local adr = Read16(PC+1)+Y
+    return adr, HI(adr-Y)~=HI(adr);
+  end,
+  function() return 0; end,                       --implied
+  function()                                      --relative
+    local offset = Read(PC+1)
+    if (offset < 0x80) then return PC+2+offset;
+      else return PC+2+offset-0x100; end
+  end,
+  function() return Read16Bug(Read(PC+1)+X) end,  --indirectX (indexedIndirect)
+  function()                                      --indirectY (indirectIndexed)
+    local adr = Read16Bug(Read(PC+1)+Y)
+    return adr, HI(adr-Y)~=HI(adr);
+  end,
+  function() return Read16Bug(Read16(PC+1)); end  --indirectAbsolute
+}
+
+local function start_cpu(inesMapper)
   Read = inesMapper.Read
   Write = inesMapper.Write
   print("cpu started")
 end
 
-function reset_cpu()
-  PC
+local function reset_cpu()
+  PC = Read16(0xFFFC)
+  SP = 0xFD
+  setFlagsByHex(0x24) --equivalent to setFlags(0,0,0,1,1,0,0,0)
+end
+
+local function step_cpu()
+  if (stall > 0) then
+    stall = stall - 1
+    return 1
+  end
+
+  local cycles = Cycles
+
+  interruptFuncs[interrupt]()
+  interrupt = interruptModes.none
+
+  local opcode = Read(PC)
+  local address, pageCrossed = addressingFuncs[opModes[opcode]]()
+
+  PC = PC + opSizes[opcode]
+  Cycles = Cycles + opCycles[opcode]
+  if(pageCrossed) then Cycles = Cycles + opPCycles[opcode] end
+
+  opTable.opCodes[opcode](address, opModes[opcode])
+
+  return Cycles-cycles;
+
+end
